@@ -49,7 +49,7 @@ fi
 
 FORGE_COMMON_FLAGS="--rpc-url $RPC_URL --private-key $PRIVATE_KEY --broadcast --gas-estimate-multiplier 300 -vvv"
 
-echo "=== Step 1: Deploy Vault ==="
+echo "=== Step 1: Deploy Vault (deploy + set gates) ==="
 forge script script/DeployVault.s.sol $FORGE_COMMON_FLAGS
 
 source "$DEPLOYMENT_ENV_FILE"
@@ -59,8 +59,8 @@ echo "Vault:       $VAULT_ADDRESS"
 echo "VaultSymbol: $VAULT_SYMBOL"
 
 echo ""
-echo "=== Step 2: Set Gates ==="
-forge script script/SetVaultGates.s.sol $FORGE_COMMON_FLAGS
+echo "=== Step 2: Configure VaultProvider (register vault + liquidity routes) ==="
+forge script script/ConfigureVaultProvider.s.sol $FORGE_COMMON_FLAGS
 
 echo ""
 echo "=== Deployment complete ==="
