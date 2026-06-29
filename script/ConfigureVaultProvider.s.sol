@@ -6,7 +6,7 @@ import {BaseScript} from "./BaseScript.s.sol";
 import {IVaultProvider} from "../src/interfaces/IVaultProvider.sol";
 import {IVaultV2} from "../src/interfaces/IVaultV2.sol";
 
-/// @notice Registers the reserve vault and the liquidity routes on the VaultProvider.
+/// @notice Registers the reserve vault on the VaultProvider.
 /// @dev The VaultProvider is a native precompile at `VAULT_PROVIDER_ADDRESS`; this
 ///      script only configures it (nothing is deployed). Mirrors the registration
 ///      logic that used to live in the old DeployVaultProvider script.
@@ -14,16 +14,10 @@ import {IVaultV2} from "../src/interfaces/IVaultV2.sol";
 ///        PRIVATE_KEY            - broadcaster, must be the VaultProvider owner
 ///        VAULT_PROVIDER_ADDRESS - VaultProvider precompile
 ///        VAULT_ADDRESS          - reserve vault to register (asset read from the vault)
-///        CREDIS_FACTORY_ADDRESS - CredisAnadosis liquidity source + Credis liquidity target
-///        GEM_FACTORY_ADDRESS    - GemSettle liquidity source (deposit-only)
-///        INTEX_FACTORY_ADDRESS  - IntexStrikePrice liquidity source (deposit-only)
 contract ConfigureVaultProvider is BaseScript {
     function run() external {
         address vaultProvider = vm.envAddress("VAULT_PROVIDER_ADDRESS");
         address reserveVault = vm.envAddress("VAULT_ADDRESS");
-        address credisFactory = vm.envAddress("CREDIS_FACTORY_ADDRESS");
-        address gemFactory = vm.envAddress("GEM_FACTORY_ADDRESS");
-        address intexFactory = vm.envAddress("INTEX_FACTORY_ADDRESS");
 
         require(vaultProvider != address(0), "VAULT_PROVIDER_REQUIRED");
         require(reserveVault != address(0), "VAULT_REQUIRED");
@@ -38,11 +32,6 @@ contract ConfigureVaultProvider is BaseScript {
             provider.addVault(reserveVault);
             console.log("Vault added:", reserveVault);
         }
-
-        provider.addLiquiditySource(credisFactory, IVaultProvider.LiquiditySource.CredisAnadosis);
-        provider.addLiquidityTarget(credisFactory, IVaultProvider.LiquidityTarget.Credis);
-        provider.addLiquiditySource(gemFactory, IVaultProvider.LiquiditySource.GemSettle);
-        provider.addLiquiditySource(intexFactory, IVaultProvider.LiquiditySource.IntexStrikePrice);
 
         vm.stopBroadcast();
 

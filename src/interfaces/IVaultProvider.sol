@@ -49,7 +49,8 @@ interface IVaultProvider {
         address indexed receiver,
         address indexed vault,
         uint256 assetsAmount,
-        uint256 burnedShares
+        uint256 burnedShares,
+        LiquidityTarget targetType
     );
 
     /// @notice Returns the number of assets.
@@ -82,16 +83,26 @@ interface IVaultProvider {
     /// @notice Removes a previously registered vault for `asset`. Reverts if not found.
     function removeVault(address vault) external;
 
+    /// @notice Registers `sourceAddress` as an authorized liquidity source of `sourceType`.
     function addLiquiditySource(address sourceAddress, LiquiditySource sourceType) external;
 
+    /// @notice Deregisters a previously registered liquidity source. Reverts if not found.
     function removeLiquiditySource(address sourceAddress) external;
 
+    /// @notice Registers `targetAddress` as an authorized liquidity target of `targetType`.
     function addLiquidityTarget(address targetAddress, LiquidityTarget targetType) external;
 
+    /// @notice Deregisters a previously registered liquidity target. Reverts if not found.
     function removeLiquidityTarget(address targetAddress) external;
 
+    /// @notice Deposits `assetsAmount` of `asset` into the asset's vault on behalf of the
+    ///         caller. The caller (`msg.sender`) must be a registered liquidity source; its
+    ///         registered `LiquiditySource` is recorded in the `LiquidityDeposited` event.
     function depositLiquidity(address asset, uint256 assetsAmount) external returns (uint256 sharesAmount);
 
+    /// @notice Redeems `amount` of `asset` from the vault and tops it up into `receiver`.
+    ///         The caller (`msg.sender`) must be a registered liquidity target; its registered
+    ///         `LiquidityTarget` is recorded in the `LiquidityWithdrawn` event.
     function withdrawLiquidity(address asset, uint256 amount, address receiver) external returns (uint256 burnedShares);
 
     /// @notice Returns the current owner (admin) of the vault provider.
