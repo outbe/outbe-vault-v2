@@ -5,6 +5,7 @@ import {Script, console} from "forge-std/Script.sol";
 
 contract BaseScript is Script {
     string public constant SALT_VERSION = "v0.0.1";
+    address public constant DEFAULT_VAULT_PROVIDER_ADDRESS = 0x0000000000000000000000000000000000001017;
 
     address internal owner;
     uint256 internal privateKey;
