@@ -7,37 +7,28 @@ import {IVaultProvider} from "../src/interfaces/IVaultProvider.sol";
 import {IVaultV2} from "../src/interfaces/IVaultV2.sol";
 
 /// @notice Registers the reserve vault on the VaultProvider.
-/// @dev The VaultProvider is a native precompile at `VAULT_PROVIDER_ADDRESS`; this
-///      script only configures it (nothing is deployed). Mirrors the registration
-///      logic that used to live in the old DeployVaultProvider script.
-///      Env:
-///        PRIVATE_KEY            - broadcaster, must be the VaultProvider owner
-///        VAULT_PROVIDER_ADDRESS - VaultProvider precompile
-///        VAULT_ADDRESS          - reserve vault to register (asset read from the vault)
 contract ConfigureVaultProvider is BaseScript {
     function run() external {
-        address vaultProvider = vm.envAddress("VAULT_PROVIDER_ADDRESS");
-        address reserveVault = vm.envAddress("VAULT_ADDRESS");
-
-        require(vaultProvider != address(0), "VAULT_PROVIDER_REQUIRED");
-        require(reserveVault != address(0), "VAULT_REQUIRED");
+        address vaultProvider = vm.envOr("VAULT_PROVIDER_ADDRESS", DEFAULT_VAULT_PROVIDER_ADDRESS);
+        address vault = vm.envAddress("VAULT_ADDRESS");
+        require(vault != address(0), "VAULT_REQUIRED");
 
         IVaultProvider provider = IVaultProvider(vaultProvider);
 
         vm.startBroadcast(privateKey);
 
-        if (_isVaultRegistered(provider, reserveVault)) {
-            console.log("WARN: vault already added, skipping:", reserveVault);
+        if (_isVaultRegistered(provider, vault)) {
+            console.log("WARN: vault already added, skipping:", vault);
         } else {
-            provider.addVault(reserveVault);
-            console.log("Vault added:", reserveVault);
+            provider.addVault(vault);
+            console.log("Vault added:", vault);
         }
 
         vm.stopBroadcast();
 
         console.log("=== VaultProvider configured ===");
         console.log("VaultProvider:", vaultProvider);
-        console.log("ReserveVault: ", reserveVault);
+        console.log("ReserveVault: ", vault);
     }
 
     /// @dev Returns true when `vault` is already registered under its `asset()` in `provider`.
