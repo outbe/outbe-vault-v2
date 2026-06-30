@@ -3,7 +3,7 @@ pragma solidity 0.8.28;
 
 import {console} from "forge-std/Script.sol";
 import {BaseScript} from "./BaseScript.s.sol";
-import {IVaultProvider} from "../src/interfaces/IVaultProvider.sol";
+import {IVaultProvider} from "./interfaces/IVaultProvider.sol";
 import {IVaultV2} from "../src/interfaces/IVaultV2.sol";
 
 /// @notice Registers the reserve vault on the VaultProvider.
