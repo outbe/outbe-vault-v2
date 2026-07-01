@@ -60,7 +60,10 @@ echo "VaultSymbol: $VAULT_SYMBOL"
 
 echo ""
 echo "=== Step 2: Configure VaultProvider (register vault + liquidity routes) ==="
-forge script script/ConfigureVaultProvider.s.sol $FORGE_COMMON_FLAGS
+# --skip-simulation: the VaultProvider is a native precompile (on-chain code is a single
+# 0xef marker), so forge's EVM simulation cannot execute calls into it and would revert with
+# OpcodeNotFound. The transactions are still broadcast to the node, which runs it natively.
+forge script script/ConfigureVaultProvider.s.sol $FORGE_COMMON_FLAGS --skip-simulation
 
 echo ""
 echo "=== Deployment complete ==="

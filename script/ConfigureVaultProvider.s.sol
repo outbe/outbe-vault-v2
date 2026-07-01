@@ -15,34 +15,50 @@ contract ConfigureVaultProvider is BaseScript {
 
         IVaultProvider provider = IVaultProvider(vaultProvider);
 
-        vm.startBroadcast(privateKey);
-
-        if (_isVaultRegistered(provider, vault)) {
-            console.log("WARN: vault already added, skipping:", vault);
+        if (_isVaultRegistered(vaultProvider, vault)) {
+            console.log("Vault already registered, skipping addVault:", vault);
         } else {
-            provider.addVault(vault);
-            console.log("Vault added:", vault);
+            vm.startBroadcast(privateKey);
+            // forge cannot execute the precompile locally, so this call reverts during the run
+            // even though it succeeds on-chain. The transaction is still recorded and broadcast;
+            // swallow the local revert so the script completes.
+            try provider.addVault(vault) {
+                console.log("Vault added:", vault);
+            } catch {
+                console.log("addVault broadcast (local precompile execution skipped):", vault);
+            }
+            vm.stopBroadcast();
         }
-
-        vm.stopBroadcast();
 
         console.log("=== VaultProvider configured ===");
         console.log("VaultProvider:", vaultProvider);
         console.log("ReserveVault: ", vault);
     }
 
-    /// @dev Returns true when `vault` is already registered under its `asset()` in `provider`.
-    ///      Used to skip `addVault` on re-runs so the broadcast does not include a call
-    ///      that would revert with ReserveVaultAlreadyAdded().
-    function _isVaultRegistered(IVaultProvider provider, address vault) internal view returns (bool) {
+    /// @dev True when `vault` is already registered under its `asset()` on the provider. The
+    ///      provider is a precompile, so its views are queried over RPC (`eth_call`) rather than
+    ///      through forge's local EVM, which cannot execute the precompile bytecode.
+    function _isVaultRegistered(address vaultProvider, address vault) internal returns (bool) {
         if (vault.code.length == 0) return false;
         address asset = IVaultV2(vault).asset();
-        uint256 count = provider.assetVaultsCount(asset);
+
+        uint256 count = abi.decode(
+            _ethCall(vaultProvider, abi.encodeCall(IVaultProvider.assetVaultsCount, (asset))), (uint256)
+        );
         for (uint256 i = 0; i < count; i++) {
-            if (provider.assetVaultAt(asset, i) == vault) {
-                return true;
-            }
+            address registered = abi.decode(
+                _ethCall(vaultProvider, abi.encodeCall(IVaultProvider.assetVaultAt, (asset, i))), (address)
+            );
+            if (registered == vault) return true;
         }
         return false;
+    }
+
+    /// @dev Performs `eth_call` against the live node so precompile logic runs natively.
+    function _ethCall(address to, bytes memory data) internal returns (bytes memory) {
+        string memory params = string.concat(
+            "[{\"to\":\"", vm.toString(to), "\",\"data\":\"", vm.toString(data), "\"},\"latest\"]"
+        );
+        return vm.rpc("eth_call", params);
     }
 }
