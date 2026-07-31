@@ -6,13 +6,13 @@ import {console} from "forge-std/Script.sol";
 import {BaseScript} from "./BaseScript.s.sol";
 
 import {VaultV2} from "../src/VaultV2.sol";
-import {VaultProviderGateGuard} from "../src/VaultProviderGateGuard.sol";
+import {VaultRouterGateGuard} from "../src/VaultRouterGateGuard.sol";
 import {IERC20} from "../src/interfaces/IERC20.sol";
 import {IVaultV2} from "../src/interfaces/IVaultV2.sol";
 
 contract DeployVault is BaseScript {
     function run() external returns (address vaultAddress) {
-        address vaultProvider = vm.envOr("VAULT_PROVIDER_ADDRESS", DEFAULT_VAULT_PROVIDER_ADDRESS);
+        address vaultRouter = vm.envOr("VAULT_ROUTER_ADDRESS", DEFAULT_VAULT_ROUTER_ADDRESS);
         address asset = vm.envAddress("ERC20_ADDRESS");
         require(asset != address(0), "ERC20_ADDRESS_REQUIRED");
 
@@ -20,12 +20,12 @@ contract DeployVault is BaseScript {
         bytes memory creationCode = abi.encodePacked(type(VaultV2).creationCode, abi.encode(owner, asset));
         vaultAddress = Create2.computeAddress(salt, keccak256(creationCode), CREATE2_FACTORY);
 
-        // The gate guard is a plain Solidity contract that mirrors the VaultProvider precompile's
-        // gate hooks (only the provider may move shares/assets), so the vault's gates point at it
-        // instead of at the precompile. Its CREATE2 address is a deterministic function of the provider.
-        bytes32 guardSalt = generateSalt("VaultProviderGateGuard");
+        // The gate guard is a plain Solidity contract that mirrors the VaultRouter precompile's
+        // gate hooks (only the router may move shares/assets), so the vault's gates point at it
+        // instead of at the precompile. Its CREATE2 address is a deterministic function of the router.
+        bytes32 guardSalt = generateSalt("VaultRouterGateGuard");
         bytes memory guardCreationCode =
-            abi.encodePacked(type(VaultProviderGateGuard).creationCode, abi.encode(vaultProvider));
+            abi.encodePacked(type(VaultRouterGateGuard).creationCode, abi.encode(vaultRouter));
         address guardAddress = Create2.computeAddress(guardSalt, keccak256(guardCreationCode), CREATE2_FACTORY);
 
         string memory assetName = IERC20(asset).name();
@@ -60,17 +60,27 @@ contract DeployVault is BaseScript {
             vault.setSymbol(vaultSymbol);
             vault.setCurator(owner);
 
-            // Route the vault's four transfer gates through the VaultProviderGateGuard so the
-            // VaultProvider is the only address allowed to move shares/assets in and out of the reserve.
+            // Route the vault's four transfer gates through the VaultRouterGateGuard so the
+            // VaultRouter is the only address allowed to move shares/assets in and out of the reserve.
             _setVaultGates(vault, guardAddress);
 
             vm.stopBroadcast();
         }
 
+        // VaultRouter.addVault requires the reserve vault to be ownerless. Renounce ownership
+        // once, after all owner-only setup above (name/symbol/curator). Idempotent: skipped when
+        // already renounced, so re-runs are safe. This is terminal — no owner-only calls afterward.
+        if (vault.owner() != address(0)) {
+            vm.startBroadcast(privateKey);
+            vault.setOwner(address(0));
+            vm.stopBroadcast();
+            console.log("Vault ownership renounced:", vaultAddress);
+        }
+
         printAndWrite(exportLine("VAULT_ADDRESS", vm.toString(vaultAddress)));
         printAndWrite(exportLine("VAULT_SYMBOL", vaultSymbol));
         printAndWrite(exportLine("VAULT_NAME", vaultName));
-        printAndWrite(exportLine("VAULT_PROVIDER_GATE_GUARD_ADDRESS", vm.toString(guardAddress)));
+        printAndWrite(exportLine("VAULT_ROUTER_GATE_GUARD_ADDRESS", vm.toString(guardAddress)));
     }
 
     /// @dev Points all four VaultV2 gates at `gate` via the submit+set timelock dance.
