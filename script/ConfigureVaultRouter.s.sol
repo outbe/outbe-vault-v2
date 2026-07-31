@@ -3,26 +3,26 @@ pragma solidity 0.8.28;
 
 import {console} from "forge-std/Script.sol";
 import {BaseScript} from "./BaseScript.s.sol";
-import {IVaultProvider} from "./interfaces/IVaultProvider.sol";
+import {IVaultRouter} from "./interfaces/IVaultRouter.sol";
 import {IVaultV2} from "../src/interfaces/IVaultV2.sol";
 
-/// @notice Registers the reserve vault on the VaultProvider.
-contract ConfigureVaultProvider is BaseScript {
+/// @notice Registers the reserve vault on the VaultRouter.
+contract ConfigureVaultRouter is BaseScript {
     function run() external {
-        address vaultProvider = vm.envOr("VAULT_PROVIDER_ADDRESS", DEFAULT_VAULT_PROVIDER_ADDRESS);
+        address vaultRouter = vm.envOr("VAULT_ROUTER_ADDRESS", DEFAULT_VAULT_ROUTER_ADDRESS);
         address vault = vm.envAddress("VAULT_ADDRESS");
         require(vault != address(0), "VAULT_REQUIRED");
 
-        IVaultProvider provider = IVaultProvider(vaultProvider);
+        IVaultRouter router = IVaultRouter(vaultRouter);
 
-        if (_isVaultRegistered(vaultProvider, vault)) {
+        if (_isVaultRegistered(vaultRouter, vault)) {
             console.log("Vault already registered, skipping addVault:", vault);
         } else {
             vm.startBroadcast(privateKey);
             // forge cannot execute the precompile locally, so this call reverts during the run
             // even though it succeeds on-chain. The transaction is still recorded and broadcast;
             // swallow the local revert so the script completes.
-            try provider.addVault(vault) {
+            try router.addVault(vault) {
                 console.log("Vault added:", vault);
             } catch {
                 console.log("addVault broadcast (local precompile execution skipped):", vault);
@@ -30,24 +30,24 @@ contract ConfigureVaultProvider is BaseScript {
             vm.stopBroadcast();
         }
 
-        console.log("=== VaultProvider configured ===");
-        console.log("VaultProvider:", vaultProvider);
+        console.log("=== VaultRouter configured ===");
+        console.log("VaultRouter:", vaultRouter);
         console.log("ReserveVault: ", vault);
     }
 
-    /// @dev True when `vault` is already registered under its `asset()` on the provider. The
-    ///      provider is a precompile, so its views are queried over RPC (`eth_call`) rather than
+    /// @dev True when `vault` is already registered under its `asset()` on the router. The
+    ///      router is a precompile, so its views are queried over RPC (`eth_call`) rather than
     ///      through forge's local EVM, which cannot execute the precompile bytecode.
-    function _isVaultRegistered(address vaultProvider, address vault) internal returns (bool) {
+    function _isVaultRegistered(address vaultRouter, address vault) internal returns (bool) {
         if (vault.code.length == 0) return false;
         address asset = IVaultV2(vault).asset();
 
         uint256 count = abi.decode(
-            _ethCall(vaultProvider, abi.encodeCall(IVaultProvider.assetVaultsCount, (asset))), (uint256)
+            _ethCall(vaultRouter, abi.encodeCall(IVaultRouter.assetVaultsCount, (asset))), (uint256)
         );
         for (uint256 i = 0; i < count; i++) {
             address registered = abi.decode(
-                _ethCall(vaultProvider, abi.encodeCall(IVaultProvider.assetVaultAt, (asset, i))), (address)
+                _ethCall(vaultRouter, abi.encodeCall(IVaultRouter.assetVaultAt, (asset, i))), (address)
             );
             if (registered == vault) return true;
         }
