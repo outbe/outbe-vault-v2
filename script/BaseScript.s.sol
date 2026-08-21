@@ -11,13 +11,24 @@ contract BaseScript is Script {
     uint256 internal privateKey;
 
     function setUp() public {
-        privateKey = deployerPrivateKey();
+        privateKey = envPrivateKey("PRIVATE_KEY");
         address signer = vm.addr(privateKey);
         owner = vm.envOr("OWNER_ADDRESS", signer);
     }
 
-    function deployerPrivateKey() internal view returns (uint256) {
-        string memory raw = vm.envString("PRIVATE_KEY");
+    /// @dev Reads a required hex private key from env var `name`, with or without the `0x` prefix.
+    function envPrivateKey(string memory name) internal view returns (uint256) {
+        return parsePrivateKey(vm.envString(name));
+    }
+
+    /// @dev Same, but returns `fallbackKey` when `name` is unset or empty.
+    function envPrivateKeyOr(string memory name, uint256 fallbackKey) internal view returns (uint256) {
+        string memory raw = vm.envOr(name, string(""));
+        if (bytes(raw).length == 0) return fallbackKey;
+        return parsePrivateKey(raw);
+    }
+
+    function parsePrivateKey(string memory raw) private pure returns (uint256) {
         if (bytes(raw).length >= 2 && bytes(raw)[0] == "0" && (bytes(raw)[1] == "x" || bytes(raw)[1] == "X")) {
             return vm.parseUint(raw);
         }
