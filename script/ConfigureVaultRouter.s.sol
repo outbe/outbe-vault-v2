@@ -18,7 +18,15 @@ contract ConfigureVaultRouter is BaseScript {
         if (_isVaultRegistered(vaultRouter, vault)) {
             console.log("Vault already registered, skipping addVault:", vault);
         } else {
-            vm.startBroadcast(privateKey);
+            // addVault is owner-gated on the router precompile. Falls back to the deploy key for
+            // chains where it is itself the router owner.
+            uint256 routerOwnerKey = envPrivateKeyOr("VAULT_ROUTER_PRIVATE_KEY", privateKey);
+            address routerOwner = abi.decode(_ethCall(vaultRouter, abi.encodeCall(IVaultRouter.owner, ())), (address));
+            // Checked up front: the try/catch below would otherwise swallow the "unauthorized"
+            // revert and only surface it as a gas-estimation failure at broadcast time.
+            require(vm.addr(routerOwnerKey) == routerOwner, "SET_VAULT_ROUTER_PRIVATE_KEY_TO_ROUTER_OWNER");
+
+            vm.startBroadcast(routerOwnerKey);
             // forge cannot execute the precompile locally, so this call reverts during the run
             // even though it succeeds on-chain. The transaction is still recorded and broadcast;
             // swallow the local revert so the script completes.
@@ -42,13 +50,11 @@ contract ConfigureVaultRouter is BaseScript {
         if (vault.code.length == 0) return false;
         address asset = IVaultV2(vault).asset();
 
-        uint256 count = abi.decode(
-            _ethCall(vaultRouter, abi.encodeCall(IVaultRouter.assetVaultsCount, (asset))), (uint256)
-        );
+        uint256 count =
+            abi.decode(_ethCall(vaultRouter, abi.encodeCall(IVaultRouter.assetVaultsCount, (asset))), (uint256));
         for (uint256 i = 0; i < count; i++) {
-            address registered = abi.decode(
-                _ethCall(vaultRouter, abi.encodeCall(IVaultRouter.assetVaultAt, (asset, i))), (address)
-            );
+            address registered =
+                abi.decode(_ethCall(vaultRouter, abi.encodeCall(IVaultRouter.assetVaultAt, (asset, i))), (address));
             if (registered == vault) return true;
         }
         return false;
@@ -56,9 +62,8 @@ contract ConfigureVaultRouter is BaseScript {
 
     /// @dev Performs `eth_call` against the live node so precompile logic runs natively.
     function _ethCall(address to, bytes memory data) internal returns (bytes memory) {
-        string memory params = string.concat(
-            "[{\"to\":\"", vm.toString(to), "\",\"data\":\"", vm.toString(data), "\"},\"latest\"]"
-        );
+        string memory params =
+            string.concat("[{\"to\":\"", vm.toString(to), "\",\"data\":\"", vm.toString(data), "\"},\"latest\"]");
         return vm.rpc("eth_call", params);
     }
 }

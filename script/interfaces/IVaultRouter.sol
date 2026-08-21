@@ -6,6 +6,9 @@ pragma solidity >=0.5.0;
 ///         interface lives in the outbe-chain repo at
 ///         contracts/precompiles/src/IVaultRouter.sol.
 interface IVaultRouter {
+    /// @notice The only address allowed to call `addVault`.
+    function owner() external view returns (address);
+
     /// @notice Returns the number of vaults registered for `asset`.
     function assetVaultsCount(address asset) external view returns (uint256);
 
