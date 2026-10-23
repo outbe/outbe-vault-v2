@@ -67,7 +67,7 @@ contract DeployVault is BaseScript {
             vm.stopBroadcast();
         }
 
-        // VaultRouter.addVault requires the reserve vault to be ownerless. Renounce ownership
+        // VaultRouter governance requires the reserve vault to be ownerless. Renounce ownership
         // once, after all owner-only setup above (name/symbol/curator). Idempotent: skipped when
         // already renounced, so re-runs are safe. This is terminal — no owner-only calls afterward.
         if (vault.owner() != address(0)) {

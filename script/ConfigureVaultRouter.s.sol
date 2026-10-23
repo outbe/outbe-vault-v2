@@ -6,46 +6,44 @@ import {BaseScript} from "./BaseScript.s.sol";
 import {IVaultRouter} from "./interfaces/IVaultRouter.sol";
 import {IVaultV2} from "../src/interfaces/IVaultV2.sol";
 
-/// @notice Registers the reserve vault on the VaultRouter.
+/// @notice Applies a validator-governance-approved VaultRouter registration.
 contract ConfigureVaultRouter is BaseScript {
     function run() external {
         address vaultRouter = vm.envOr("VAULT_ROUTER_ADDRESS", DEFAULT_VAULT_ROUTER_ADDRESS);
         address vault = vm.envAddress("VAULT_ADDRESS");
         require(vault != address(0), "VAULT_REQUIRED");
 
-        IVaultRouter router = IVaultRouter(vaultRouter);
-
         if (_isVaultRegistered(vaultRouter, vault)) {
-            console.log("Vault already registered, skipping addVault:", vault);
-        } else {
-            // addVault is owner-gated on the router precompile. Falls back to the deploy key for
-            // chains where it is itself the router owner.
-            uint256 routerOwnerKey = envPrivateKeyOr("VAULT_ROUTER_PRIVATE_KEY", privateKey);
-            address routerOwner = abi.decode(_ethCall(vaultRouter, abi.encodeCall(IVaultRouter.owner, ())), (address));
-            // Checked up front: the try/catch below would otherwise swallow the "unauthorized"
-            // revert and only surface it as a gas-estimation failure at broadcast time.
-            require(vm.addr(routerOwnerKey) == routerOwner, "SET_VAULT_ROUTER_PRIVATE_KEY_TO_ROUTER_OWNER");
-
-            vm.startBroadcast(routerOwnerKey);
-            // forge cannot execute the precompile locally, so this call reverts during the run
-            // even though it succeeds on-chain. The transaction is still recorded and broadcast;
-            // swallow the local revert so the script completes.
-            try router.addVault(vault) {
-                console.log("Vault added:", vault);
-            } catch {
-                console.log("addVault broadcast (local precompile execution skipped):", vault);
-            }
-            vm.stopBroadcast();
+            console.log("Vault already registered, skipping applyApproved:", vault);
+            return;
         }
+        uint256 proposalId = vm.envUint("VAULT_PROPOSAL_ID");
+        require(proposalId != 0, "VAULT_PROPOSAL_ID_REQUIRED");
 
-        console.log("=== VaultRouter configured ===");
+        IVaultRouter router = IVaultRouter(vaultRouter);
+        (IVaultRouter.VaultAction action, address approvedVault,) = abi.decode(
+            _ethCall(vaultRouter, abi.encodeCall(IVaultRouter.approvedVaultAction, (proposalId))),
+            (IVaultRouter.VaultAction, address, uint64)
+        );
+        require(action == IVaultRouter.VaultAction.AddVault, "PROPOSAL_NOT_APPROVED_FOR_ADD_VAULT");
+        require(approvedVault == vault, "APPROVED_VAULT_MISMATCH");
+
+        vm.startBroadcast(privateKey);
+        // Forge cannot execute the native precompile locally. The call is still recorded for
+        // broadcast, so swallow only the local execution failure and verify over RPC afterward.
+        try router.applyApproved(proposalId) {
+            console.log("Approved vault action applied:", proposalId);
+        } catch {
+            console.log("applyApproved broadcast (local precompile execution skipped):", proposalId);
+        }
+        vm.stopBroadcast();
+
+        console.log("=== VaultRouter governance action submitted ===");
         console.log("VaultRouter:", vaultRouter);
         console.log("ReserveVault: ", vault);
+        console.log("Proposal:     ", proposalId);
     }
 
-    /// @dev True when `vault` is already registered under its `asset()` on the router. The
-    ///      router is a precompile, so its views are queried over RPC (`eth_call`) rather than
-    ///      through forge's local EVM, which cannot execute the precompile bytecode.
     function _isVaultRegistered(address vaultRouter, address vault) internal returns (bool) {
         if (vault.code.length == 0) return false;
         address asset = IVaultV2(vault).asset();
@@ -60,7 +58,6 @@ contract ConfigureVaultRouter is BaseScript {
         return false;
     }
 
-    /// @dev Performs `eth_call` against the live node so precompile logic runs natively.
     function _ethCall(address to, bytes memory data) internal returns (bytes memory) {
         string memory params =
             string.concat("[{\"to\":\"", vm.toString(to), "\",\"data\":\"", vm.toString(data), "\"},\"latest\"]");

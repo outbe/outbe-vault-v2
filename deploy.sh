@@ -59,10 +59,14 @@ echo "Vault:       $VAULT_ADDRESS"
 echo "VaultSymbol: $VAULT_SYMBOL"
 
 echo ""
-echo "=== Step 2: Configure VaultRouter (register vault + liquidity routes) ==="
+echo "=== Step 2: Apply an approved VaultRouter governance action ==="
 # --skip-simulation: the VaultRouter is a native precompile (on-chain code is a single
 # 0xef marker), so forge's EVM simulation cannot execute calls into it and would revert with
 # OpcodeNotFound. The transactions are still broadcast to the node, which runs it natively.
+if [[ -z "${VAULT_PROPOSAL_ID:-}" ]]; then
+  echo "VAULT_PROPOSAL_ID is required after validators approve the addVault proposal." >&2
+  exit 1
+fi
 forge script script/ConfigureVaultRouter.s.sol $FORGE_COMMON_FLAGS --skip-simulation
 
 echo ""
