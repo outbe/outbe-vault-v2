@@ -6,7 +6,7 @@ import {BaseScript} from "./BaseScript.s.sol";
 import {IVaultRouter} from "./interfaces/IVaultRouter.sol";
 import {IVaultV2} from "../src/interfaces/IVaultV2.sol";
 
-/// @notice Applies a validator-governance-approved VaultRouter registration.
+/// @notice Applies a validator-governance-approved VaultRouter vault action (applyVaultAction).
 contract ConfigureVaultRouter is BaseScript {
     function run() external {
         address vaultRouter = vm.envOr("VAULT_ROUTER_ADDRESS", DEFAULT_VAULT_ROUTER_ADDRESS);
@@ -14,7 +14,7 @@ contract ConfigureVaultRouter is BaseScript {
         require(vault != address(0), "VAULT_REQUIRED");
 
         if (_isVaultRegistered(vaultRouter, vault)) {
-            console.log("Vault already registered, skipping applyApproved:", vault);
+            console.log("Vault already registered, skipping applyVaultAction:", vault);
             return;
         }
         uint256 proposalId = vm.envUint("VAULT_PROPOSAL_ID");
@@ -22,7 +22,7 @@ contract ConfigureVaultRouter is BaseScript {
 
         IVaultRouter router = IVaultRouter(vaultRouter);
         (IVaultRouter.VaultAction action, address approvedVault,) = abi.decode(
-            _ethCall(vaultRouter, abi.encodeCall(IVaultRouter.approvedVaultAction, (proposalId))),
+            _ethCall(vaultRouter, abi.encodeCall(IVaultRouter.getVaultAction, (proposalId))),
             (IVaultRouter.VaultAction, address, uint64)
         );
         require(action == IVaultRouter.VaultAction.AddVault, "PROPOSAL_NOT_APPROVED_FOR_ADD_VAULT");
@@ -31,10 +31,10 @@ contract ConfigureVaultRouter is BaseScript {
         vm.startBroadcast(privateKey);
         // Forge cannot execute the native precompile locally. The call is still recorded for
         // broadcast, so swallow only the local execution failure and verify over RPC afterward.
-        try router.applyApproved(proposalId) {
+        try router.applyVaultAction(proposalId) {
             console.log("Approved vault action applied:", proposalId);
         } catch {
-            console.log("applyApproved broadcast (local precompile execution skipped):", proposalId);
+            console.log("applyVaultAction broadcast (local precompile execution skipped):", proposalId);
         }
         vm.stopBroadcast();
 
