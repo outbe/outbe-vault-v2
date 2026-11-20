@@ -18,12 +18,13 @@ interface IVaultRouter {
     /// @notice Returns the reserve vault at `index` for `asset`. Reverts if out of bounds.
     function assetVaultAt(address asset, uint256 index) external view returns (address vault);
 
-    /// @notice Applies a governance-approved vault action. Anyone may call this method.
-    function applyApproved(uint256 proposalId) external;
+    /// @notice Applies a pending vault action once. Anyone may call. Strictly after the
+    ///         governance window, deletes the record and emits VaultActionExpired instead.
+    function applyVaultAction(uint256 proposalId) external;
 
-    /// @notice Returns a governance-approved vault action waiting to be applied.
-    function approvedVaultAction(uint256 proposalId)
+    /// @notice Returns the pending vault action, or Unknown if no record remains.
+    function getVaultAction(uint256 proposalId)
         external
         view
-        returns (VaultAction action, address vault, uint64 approvedAt);
+        returns (VaultAction action, address vault, uint64 createdAt);
 }
